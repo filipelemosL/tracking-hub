@@ -8,7 +8,10 @@ describe("loadEnv", () => {
       nodeEnv: "development",
       port: 3000,
       databaseUrl: "postgresql://localhost/tracking_hub",
-      workerPollIntervalMs: 1000
+      workerPollIntervalMs: 1000,
+      attributionWindowMinutes: 30,
+      trackingWaitMs: 10000,
+      maxProcessingRetries: 3
     });
   });
 

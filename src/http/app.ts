@@ -3,6 +3,8 @@ import express, { type Express } from "express";
 import type { GetDatabaseDiagnostic } from "../application/diagnostics/get-database-diagnostic.js";
 import { captureSession, CaptureConflictError, type CaptureRepository } from "../application/tracking/capture-session.js";
 import { CaptureValidationError, validateTrackingSession } from "./validate-tracking-session.js";
+import { receiveOrderWebhook, WebhookConflictError, type WebhookRepository } from "../application/orders/order-webhook.js";
+import { OrderWebhookValidationError, validateOrderWebhook } from "./validate-order-webhook.js";
 
 export type HealthCheck = () => Promise<void>;
 
@@ -10,10 +12,12 @@ export type AppDependencies = {
   checkDatabase: HealthCheck;
   getDatabaseDiagnostic: GetDatabaseDiagnostic;
   trackingSessions?: CaptureRepository;
+  orderWebhooks?: WebhookRepository;
+  getOrderTracking?: (orderId: string) => Promise<{ status: number; body: unknown }>;
   now?: () => Date;
 };
 
-export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessions, now = () => new Date() }: AppDependencies): Express {
+export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessions, orderWebhooks, getOrderTracking, now = () => new Date() }: AppDependencies): Express {
   const app = express();
 
   app.disable("x-powered-by");
@@ -38,6 +42,32 @@ export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessio
       } else {
         response.status(500).json({ code: "INTERNAL_ERROR" });
       }
+    }
+  });
+
+  if (orderWebhooks) app.post("/webhooks/orders", async (request, response) => {
+    const receivedAt = now();
+    try {
+      const input = validateOrderWebhook(request.body, receivedAt);
+      const { duplicate } = await receiveOrderWebhook(orderWebhooks, input, request.body, receivedAt);
+      response.status(202).json({ eventId: input.eventId, accepted: true, duplicate });
+    } catch (error) {
+      if (error instanceof OrderWebhookValidationError) {
+        response.status(400).json({ code: "VALIDATION_ERROR", fields: error.fields });
+      } else if (error instanceof WebhookConflictError) {
+        response.status(409).json({ code: "WEBHOOK_EVENT_CONFLICT" });
+      } else {
+        response.status(503).json({ code: "WEBHOOK_PERSISTENCE_FAILED" });
+      }
+    }
+  });
+
+  if (getOrderTracking) app.get("/support/orders/:orderId/tracking", async (request, response) => {
+    try {
+      const result = await getOrderTracking(request.params.orderId as string);
+      response.status(result.status).json(result.body);
+    } catch {
+      response.status(503).json({ code: "SUPPORT_LOOKUP_FAILED" });
     }
   });
 

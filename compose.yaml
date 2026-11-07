@@ -32,6 +32,47 @@ services:
     volumes:
       - postgres_test_data:/var/lib/postgresql/data
 
+  migrate:
+    build:
+      context: .
+      target: build
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tracking_hub}:${POSTGRES_PASSWORD:-tracking_hub}@db:5432/${POSTGRES_DB:-tracking_hub}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    image: tracking-hub-app:local
+    build: .
+    command: ["node", "dist/server.js"]
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tracking_hub}:${POSTGRES_PASSWORD:-tracking_hub}@db:5432/${POSTGRES_DB:-tracking_hub}?schema=public
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    init: true
+
+  worker:
+    image: tracking-hub-app:local
+    build: .
+    command: ["node", "dist/worker.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tracking_hub}:${POSTGRES_PASSWORD:-tracking_hub}@db:5432/${POSTGRES_DB:-tracking_hub}?schema=public
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
+      ATTRIBUTION_WINDOW_MINUTES: ${ATTRIBUTION_WINDOW_MINUTES:-30}
+      TRACKING_WAIT_MS: ${TRACKING_WAIT_MS:-10000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    init: true
+
 volumes:
   postgres_data:
   postgres_test_data:

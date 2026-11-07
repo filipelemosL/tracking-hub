@@ -1,30 +1,39 @@
 import { loadEnv } from "./config/env.js";
-import { checkDatabaseConnection, prisma } from "./infra/database/prisma.js";
+import { prisma } from "./infra/database/prisma.js";
+import { createOrderWorker } from "./infra/database/order-worker.js";
 
 const env = loadEnv();
+const worker = createOrderWorker(prisma, env);
 let running = true;
+let wake: (() => void) | undefined;
 
 async function run(): Promise<void> {
   console.info("tracking-hub worker started");
-
-  while (running) {
-    try {
-      await checkDatabaseConnection();
-    } catch {
-      console.error("worker could not reach the database");
+  try {
+    while (running) {
+      try {
+        await worker.runOnce();
+      } catch {
+        console.error("worker cycle failed");
+      }
+      if (!running) break;
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => { wake = undefined; resolve(); }, Math.min(env.workerPollIntervalMs, 1000));
+        wake = () => { clearTimeout(timer); wake = undefined; resolve(); };
+      });
     }
-
-    await new Promise((resolve) => setTimeout(resolve, env.workerPollIntervalMs));
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-async function shutdown(signal: string): Promise<void> {
+function shutdown(signal: string): void {
   console.info(`received ${signal}; shutting down worker`);
   running = false;
-  await prisma.$disconnect();
+  wake?.();
 }
 
-process.once("SIGINT", () => void shutdown("SIGINT"));
-process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
 
 void run();

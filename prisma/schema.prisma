@@ -27,6 +27,7 @@ model TrackingSession {
   customerPhoneHash String?  @map("customer_phone_hash") @db.Char(64)
   capturedAt        DateTime? @map("captured_at") @db.Timestamptz(3)
   receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  orders            Order[]
 
   @@index([fbclid])
   @@index([fbc])
@@ -39,4 +40,87 @@ model TrackingSession {
   @@index([customerEmailHash, capturedAt])
   @@index([customerPhoneHash, capturedAt])
   @@map("tracking_sessions")
+}
+
+enum WebhookStatus {
+  PENDING
+  WAITING_TRACKING
+  PROCESSED
+  CONFLICT
+  FAILED
+}
+
+enum AttributionStatus {
+  ATTRIBUTED
+  UNATTRIBUTED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  RETRY_SCHEDULED
+  FAILED
+  UNCERTAIN
+}
+
+enum ConversionProvider {
+  META
+  GOOGLE
+  TIKTOK
+  UTMIFY
+  REDTRACK
+}
+
+model WebhookEvent {
+  id                String        @id @default(uuid()) @db.Uuid
+  eventId           String        @unique @map("event_id") @db.VarChar(128)
+  event             String        @db.VarChar(32)
+  orderId           String        @map("order_id") @db.VarChar(128)
+  originalPayload   Json          @map("original_payload") @db.JsonB
+  normalizedPayload Json          @map("normalized_payload") @db.JsonB
+  status            WebhookStatus @default(PENDING)
+  reason            String?       @db.VarChar(64)
+  receivedAt        DateTime      @default(now()) @map("received_at") @db.Timestamptz(3)
+  occurredAt        DateTime?     @map("occurred_at") @db.Timestamptz(3)
+  trackingDeadline  DateTime?     @map("tracking_deadline") @db.Timestamptz(3)
+  nextAttemptAt     DateTime      @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  retryCount        Int           @default(0) @map("retry_count")
+  lastError         String?       @map("last_error") @db.VarChar(128)
+  orderDbId         String?       @map("order_db_id") @db.Uuid
+  order             Order?        @relation(fields: [orderDbId], references: [id])
+
+  @@index([status, nextAttemptAt])
+  @@index([orderId, receivedAt])
+  @@map("webhook_events")
+}
+
+model Order {
+  id                String               @id @default(uuid()) @db.Uuid
+  orderId           String               @unique @map("order_id") @db.VarChar(128)
+  amount            BigInt
+  currency          String               @db.Char(3)
+  occurredAt        DateTime             @map("occurred_at") @db.Timestamptz(3)
+  timeSource        String               @map("time_source") @db.VarChar(16)
+  attributionStatus AttributionStatus    @map("attribution_status")
+  trackingSessionId String?              @map("tracking_session_id") @db.Uuid
+  trackingSession   TrackingSession?     @relation(fields: [trackingSessionId], references: [id])
+  attribution       Json                 @db.JsonB
+  webhookEvents     WebhookEvent[]
+  deliveries        ConversionDelivery[]
+
+  @@map("orders")
+}
+
+model ConversionDelivery {
+  id           String             @id @default(uuid()) @db.Uuid
+  orderDbId    String             @map("order_db_id") @db.Uuid
+  order        Order              @relation(fields: [orderDbId], references: [id])
+  type         String             @db.VarChar(32)
+  provider     ConversionProvider
+  conversionId String             @unique @map("conversion_id") @db.Char(64)
+  status       DeliveryStatus     @default(PENDING)
+  nextAttemptAt DateTime?         @map("next_attempt_at") @db.Timestamptz(3)
+
+  @@unique([orderDbId, type, provider])
+  @@map("conversion_deliveries")
 }

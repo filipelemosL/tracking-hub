@@ -5,6 +5,9 @@ export type AppEnv = {
   port: number;
   databaseUrl: string;
   workerPollIntervalMs: number;
+  attributionWindowMinutes: number;
+  trackingWaitMs: number;
+  maxProcessingRetries: number;
 };
 
 function positiveInteger(name: string, rawValue: string | undefined, fallback: number): number {
@@ -36,6 +39,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       "WORKER_POLL_INTERVAL_MS",
       source.WORKER_POLL_INTERVAL_MS,
       1000
-    )
+    ),
+    attributionWindowMinutes: positiveInteger("ATTRIBUTION_WINDOW_MINUTES", source.ATTRIBUTION_WINDOW_MINUTES, 30),
+    trackingWaitMs: positiveInteger("TRACKING_WAIT_MS", source.TRACKING_WAIT_MS, 10000),
+    maxProcessingRetries: 3
   };
 }

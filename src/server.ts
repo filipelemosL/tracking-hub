@@ -7,12 +7,16 @@ import {
   prismaDatabaseDiagnosticRepository
 } from "./infra/database/prisma.js";
 import { trackingSessionRepository } from "./infra/database/tracking-session-repository.js";
+import { orderWebhookRepository } from "./infra/database/order-webhook-repository.js";
+import { orderSupportRepository } from "./infra/database/order-support.js";
 
 const env = loadEnv();
 const app = createApp({
   checkDatabase: checkDatabaseConnection,
   getDatabaseDiagnostic: createGetDatabaseDiagnostic(prismaDatabaseDiagnosticRepository),
-  trackingSessions: trackingSessionRepository(prisma)
+  trackingSessions: trackingSessionRepository(prisma),
+  orderWebhooks: orderWebhookRepository(prisma),
+  getOrderTracking: orderSupportRepository(prisma)
 });
 const server = app.listen(env.port, () => {
   console.info(`tracking-hub api listening on port ${env.port}`);
