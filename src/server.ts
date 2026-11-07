@@ -6,11 +6,13 @@ import {
   prisma,
   prismaDatabaseDiagnosticRepository
 } from "./infra/database/prisma.js";
+import { trackingSessionRepository } from "./infra/database/tracking-session-repository.js";
 
 const env = loadEnv();
 const app = createApp({
   checkDatabase: checkDatabaseConnection,
-  getDatabaseDiagnostic: createGetDatabaseDiagnostic(prismaDatabaseDiagnosticRepository)
+  getDatabaseDiagnostic: createGetDatabaseDiagnostic(prismaDatabaseDiagnosticRepository),
+  trackingSessions: trackingSessionRepository(prisma)
 });
 const server = app.listen(env.port, () => {
   console.info(`tracking-hub api listening on port ${env.port}`);

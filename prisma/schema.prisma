@@ -10,6 +10,7 @@ datasource db {
 model TrackingSession {
   id                String   @id @default(uuid()) @db.Uuid
   sessionId         String   @unique @map("session_id") @db.VarChar(128)
+  visitorId         String?  @map("visitor_id") @db.VarChar(128)
   pageUrl           String   @map("page_url") @db.Text
   customFields      Json     @map("custom_fields") @db.JsonB
   fbclid            String?  @db.VarChar(512)
@@ -24,7 +25,8 @@ model TrackingSession {
   utmifyId          String?  @map("utmify_id") @db.VarChar(512)
   customerEmailHash String?  @map("customer_email_hash") @db.Char(64)
   customerPhoneHash String?  @map("customer_phone_hash") @db.Char(64)
-  capturedAt        DateTime @default(now()) @map("captured_at") @db.Timestamptz(3)
+  capturedAt        DateTime? @map("captured_at") @db.Timestamptz(3)
+  receivedAt        DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
 
   @@index([fbclid])
   @@index([fbc])

@@ -4,11 +4,20 @@
 - Monólito modular em Node.js + TypeScript. Express é a camada HTTP exigida pelo enunciado.
 - Use cases concentram as regras. Rotas validam entradas e chamam os casos de uso.
 - Prisma acessa o PostgreSQL. Um contrato `ConversionProvider` define o envio por adaptadores.
-- Docker Compose sobe Postgres, API e um worker sequencial com a mesma imagem da aplicação.
+- Docker Compose sobe PostgreSQL de desenvolvimento e, no profile `test`, um banco isolado. API e worker serão adicionados ao Compose na fatia de processamento, com a mesma imagem e comandos distintos.
 - O banco é a fila persistente. Vitest testa os casos de uso e a integração com PostgreSQL.
 
 ## Fluxo e consistência
 1. `POST /tracking/sessions` valida, normaliza e persiste a captura.
+   A captura é imutável: reenvio equivalente retorna 200; dados diferentes no mesmo
+   `sessionId` retornam 409. Enriquecimento posterior exige uma evolução explícita
+   do contrato. O worker de vendas ainda não existe; quando o webhook chegar antes
+   da sessão, a espera limitada deverá ser implementada nele.
+   Limites HTTP: corpo JSON de 64 KiB; `sessionId` e `visitorId` até 128 caracteres,
+   URL até 2048, cada identificador até 512, `customFields` até 16 KiB,
+   e-mail até 254 e telefone até 32. `capturedAt` é opcional e exige ISO 8601
+   com fuso; `receivedAt` é observado no backend. E-mail e telefone são
+   normalizados e persistidos somente como hashes SHA-256.
 2. `POST /webhooks/orders` grava o evento original e responde `202` após o commit.
 3. O worker resolve a atribuição e grava pedido, snapshot, envios e conclusão do evento em uma transação.
 4. Um segundo ciclo envia conversões fora da transação, com transporte simulado e histórico por provedor.
@@ -17,7 +26,7 @@
 ## Banco de dados
 | Modelo | Chaves e conteúdo |
 | --- | --- |
-| `TrackingSession` | `sessionId` único, URL, `customFields`, identificadores, referência de cliente e data da captura. |
+| `TrackingSession` | `sessionId` único, `visitorId` opcional, URL, `customFields`, identificadores, hashes de cliente, `capturedAt` opcional do cliente e `receivedAt` do backend. |
 | `WebhookEvent` | `eventId` único, payload original, estado, recebimento e FK opcional do pedido. |
 | `Order` | `orderId` único, centavos inteiros, moeda, FK opcional da sessão e snapshot da atribuição. |
 | `ConversionDelivery` | FK do pedido, único por pedido/tipo/provedor, chave estável, status e próxima tentativa. |

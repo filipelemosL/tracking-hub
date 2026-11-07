@@ -60,6 +60,7 @@ describe("TrackingSession persistence", () => {
       fbp: "test-meta-fbp",
       customerEmailHash: "a".repeat(64)
     });
-    expect(reloaded?.capturedAt).toBeInstanceOf(Date);
+    expect(reloaded?.capturedAt).toBeNull();
+    expect(reloaded?.receivedAt).toBeInstanceOf(Date);
   });
 });
