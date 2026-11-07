@@ -1,44 +1,37 @@
 services:
-  postgres:
+  db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: tracking_hub
-      POSTGRES_USER: tracking_hub
-      POSTGRES_PASSWORD: tracking_hub
+      POSTGRES_DB: ${POSTGRES_DB:-tracking_hub}
+      POSTGRES_USER: ${POSTGRES_USER:-tracking_hub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracking_hub}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tracking_hub -d tracking_hub"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  api:
-    build: .
+  db-test:
+    image: postgres:17-alpine
+    profiles: ["test"]
     environment:
-      NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgresql://tracking_hub:tracking_hub@postgres:5432/tracking_hub?schema=public
+      POSTGRES_DB: tracking_hub_test
+      POSTGRES_USER: tracking_hub
+      POSTGRES_PASSWORD: tracking_hub
     ports:
-      - "3000:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    init: true
-
-  worker:
-    build: .
-    command: ["node", "dist/worker.js"]
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://tracking_hub:tracking_hub@postgres:5432/tracking_hub?schema=public
-      WORKER_POLL_INTERVAL_MS: 1000
-    depends_on:
-      postgres:
-        condition: service_healthy
-    init: true
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracking_hub -d tracking_hub_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
 
 volumes:
   postgres_data:
+  postgres_test_data:

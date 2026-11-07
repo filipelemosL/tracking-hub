@@ -7,4 +7,34 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Os modelos de dominio serao adicionados junto com a primeira fatia funcional.
+model TrackingSession {
+  id                String   @id @default(uuid()) @db.Uuid
+  sessionId         String   @unique @map("session_id") @db.VarChar(128)
+  pageUrl           String   @map("page_url") @db.Text
+  customFields      Json     @map("custom_fields") @db.JsonB
+  fbclid            String?  @db.VarChar(512)
+  fbc               String?  @db.VarChar(512)
+  fbp               String?  @db.VarChar(512)
+  gclid             String?  @db.VarChar(512)
+  gbraid            String?  @db.VarChar(512)
+  wbraid            String?  @db.VarChar(512)
+  ttclid            String?  @db.VarChar(512)
+  ttp               String?  @db.VarChar(512)
+  redtrackClickId   String?  @map("redtrack_click_id") @db.VarChar(512)
+  utmifyId          String?  @map("utmify_id") @db.VarChar(512)
+  customerEmailHash String?  @map("customer_email_hash") @db.Char(64)
+  customerPhoneHash String?  @map("customer_phone_hash") @db.Char(64)
+  capturedAt        DateTime @default(now()) @map("captured_at") @db.Timestamptz(3)
+
+  @@index([fbclid])
+  @@index([fbc])
+  @@index([gclid])
+  @@index([gbraid])
+  @@index([wbraid])
+  @@index([ttclid])
+  @@index([redtrackClickId])
+  @@index([utmifyId])
+  @@index([customerEmailHash, capturedAt])
+  @@index([customerPhoneHash, capturedAt])
+  @@map("tracking_sessions")
+}
