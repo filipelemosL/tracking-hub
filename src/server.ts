@@ -16,7 +16,8 @@ const app = createApp({
   getDatabaseDiagnostic: createGetDatabaseDiagnostic(prismaDatabaseDiagnosticRepository),
   trackingSessions: trackingSessionRepository(prisma),
   orderWebhooks: orderWebhookRepository(prisma),
-  getOrderTracking: orderSupportRepository(prisma)
+  getOrderTracking: orderSupportRepository(prisma),
+  testScenariosEnabled: env.conversionMode === "simulated" && env.enableTestScenarios && env.nodeEnv !== "production"
 });
 const server = app.listen(env.port, () => {
   console.info(`tracking-hub api listening on port ${env.port}`);

@@ -49,12 +49,14 @@ async function drain(max = 6) {
 describe("durable order processing", () => {
   beforeEach(async () => {
     clock = new Date("2026-11-07T20:00:00.000Z");
+    await prisma.conversionAttempt.deleteMany();
     await prisma.conversionDelivery.deleteMany();
     await prisma.webhookEvent.deleteMany();
     await prisma.order.deleteMany();
     await prisma.trackingSession.deleteMany();
   });
   afterAll(async () => {
+    await prisma.conversionAttempt.deleteMany();
     await prisma.conversionDelivery.deleteMany();
     await prisma.webhookEvent.deleteMany();
     await prisma.order.deleteMany();

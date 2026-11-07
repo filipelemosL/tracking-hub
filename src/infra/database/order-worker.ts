@@ -98,11 +98,14 @@ export function createOrderWorker(
         orderId: input.orderId, amount: BigInt(input.amount), currency: input.currency,
         occurredAt: purchaseTime, timeSource, attributionStatus: snapshot.status,
         trackingSessionId: snapshot.status === "ATTRIBUTED" ? session!.id : null,
-        attribution: snapshot as unknown as Prisma.InputJsonObject
+        attribution: snapshot as unknown as Prisma.InputJsonObject,
+        conversionContext: { pageUrl: snapshot.status === "ATTRIBUTED" ? session!.pageUrl : null, emailHash: snapshot.status === "ATTRIBUTED" ? session!.customerEmailHash : null, phoneHash: snapshot.status === "ATTRIBUTED" ? session!.customerPhoneHash : null, source: "ORDER_SNAPSHOT" }
       } });
       await hooks.afterOrderCreated?.();
       await tx.conversionDelivery.createMany({ data: providers.map((provider) => ({
         orderDbId: order.id, provider, type: "PURCHASE", status: "PENDING" as const,
+        scenario: event.scenario,
+        payloadSchemaVersion: provider === "UTMIFY" ? "utmify-demo-v1" : `${provider.toLowerCase()}-demo-v1`,
         conversionId: createHash("sha256").update(`${input.orderId}:PURCHASE:${provider}`).digest("hex")
       })) });
       await tx.webhookEvent.update({ where: { id: event.id }, data: {

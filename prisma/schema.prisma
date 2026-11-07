@@ -57,10 +57,21 @@ enum AttributionStatus {
 
 enum DeliveryStatus {
   PENDING
-  SENT
-  RETRY_SCHEDULED
-  FAILED
-  UNCERTAIN
+  PROCESSING
+  RETRY_PENDING
+  DELIVERED
+  FAILED_PERMANENT
+  FAILED_EXHAUSTED
+  UNKNOWN
+  SKIPPED
+}
+
+enum AttemptStatus {
+  STARTED
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_PERMANENT
+  UNKNOWN
 }
 
 enum ConversionProvider {
@@ -78,6 +89,7 @@ model WebhookEvent {
   orderId           String        @map("order_id") @db.VarChar(128)
   originalPayload   Json          @map("original_payload") @db.JsonB
   normalizedPayload Json          @map("normalized_payload") @db.JsonB
+  scenario          String        @default("SUCCESS") @db.VarChar(64)
   status            WebhookStatus @default(PENDING)
   reason            String?       @db.VarChar(64)
   receivedAt        DateTime      @default(now()) @map("received_at") @db.Timestamptz(3)
@@ -105,6 +117,7 @@ model Order {
   trackingSessionId String?              @map("tracking_session_id") @db.Uuid
   trackingSession   TrackingSession?     @relation(fields: [trackingSessionId], references: [id])
   attribution       Json                 @db.JsonB
+  conversionContext Json?                @map("conversion_context") @db.JsonB
   webhookEvents     WebhookEvent[]
   deliveries        ConversionDelivery[]
 
@@ -120,7 +133,36 @@ model ConversionDelivery {
   conversionId String             @unique @map("conversion_id") @db.Char(64)
   status       DeliveryStatus     @default(PENDING)
   nextAttemptAt DateTime?         @map("next_attempt_at") @db.Timestamptz(3)
+  reason       String?            @db.VarChar(64)
+  scenario     String             @default("SUCCESS") @db.VarChar(64)
+  transportMode String            @default("SIMULATED") @map("transport_mode") @db.VarChar(16)
+  payloadSchemaVersion String     @default("demo-v1") @map("payload_schema_version") @db.VarChar(32)
+  frozenRequest Json?             @map("frozen_request") @db.JsonB
+  requestDigest String?           @map("request_digest") @db.Char(64)
+  claimToken String?              @map("claim_token") @db.Uuid
+  leaseUntil DateTime?            @map("lease_until") @db.Timestamptz(3)
+  attempts ConversionAttempt[]
 
   @@unique([orderDbId, type, provider])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseUntil])
   @@map("conversion_deliveries")
+}
+
+model ConversionAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  deliveryId String @map("delivery_id") @db.Uuid
+  delivery ConversionDelivery @relation(fields: [deliveryId], references: [id])
+  attemptNumber Int @map("attempt_number")
+  startedAt DateTime @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+  status AttemptStatus @default(STARTED)
+  httpStatus Int? @map("http_status")
+  errorCode String? @map("error_code") @db.VarChar(64)
+  response Json? @db.JsonB
+  request Json @db.JsonB
+  requestDigest String @map("request_digest") @db.Char(64)
+
+  @@unique([deliveryId, attemptNumber])
+  @@map("conversion_attempts")
 }

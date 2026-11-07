@@ -1,9 +1,11 @@
 import { loadEnv } from "./config/env.js";
 import { prisma } from "./infra/database/prisma.js";
 import { createOrderWorker } from "./infra/database/order-worker.js";
+import { createConversionDispatcher } from "./infra/database/conversion-dispatcher.js";
 
 const env = loadEnv();
 const worker = createOrderWorker(prisma, env);
+const dispatcher = createConversionDispatcher(prisma, env);
 let running = true;
 let wake: (() => void) | undefined;
 
@@ -13,6 +15,7 @@ async function run(): Promise<void> {
     while (running) {
       try {
         await worker.runOnce();
+        await dispatcher.runOnce();
       } catch {
         console.error("worker cycle failed");
       }

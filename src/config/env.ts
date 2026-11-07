@@ -8,6 +8,11 @@ export type AppEnv = {
   attributionWindowMinutes: number;
   trackingWaitMs: number;
   maxProcessingRetries: number;
+  conversionMode: "simulated";
+  enableTestScenarios: boolean;
+  transportTimeoutMs: number;
+  deliveryLeaseMs: number;
+  deliveryMaxAttempts: number;
 };
 
 function positiveInteger(name: string, rawValue: string | undefined, fallback: number): number {
@@ -30,6 +35,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   if (!source.DATABASE_URL) {
     throw new Error("DATABASE_URL is required");
   }
+  if (source.CONVERSION_MODE && source.CONVERSION_MODE !== "simulated") throw new Error("CONVERSION_MODE must be simulated");
+  if (source.ENABLE_TEST_SCENARIOS && !["true", "false"].includes(source.ENABLE_TEST_SCENARIOS)) throw new Error("ENABLE_TEST_SCENARIOS must be true or false");
 
   return {
     nodeEnv,
@@ -42,6 +49,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     ),
     attributionWindowMinutes: positiveInteger("ATTRIBUTION_WINDOW_MINUTES", source.ATTRIBUTION_WINDOW_MINUTES, 30),
     trackingWaitMs: positiveInteger("TRACKING_WAIT_MS", source.TRACKING_WAIT_MS, 10000),
-    maxProcessingRetries: 3
+    maxProcessingRetries: 3,
+    conversionMode: "simulated",
+    enableTestScenarios: source.ENABLE_TEST_SCENARIOS === "true",
+    transportTimeoutMs: positiveInteger("TRANSPORT_TIMEOUT_MS", source.TRANSPORT_TIMEOUT_MS, 2000),
+    deliveryLeaseMs: positiveInteger("DELIVERY_LEASE_MS", source.DELIVERY_LEASE_MS, 10000),
+    deliveryMaxAttempts: positiveInteger("DELIVERY_MAX_ATTEMPTS", source.DELIVERY_MAX_ATTEMPTS, 3)
   };
 }

@@ -48,9 +48,11 @@ services:
     build: .
     command: ["node", "dist/server.js"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-tracking_hub}:${POSTGRES_PASSWORD:-tracking_hub}@db:5432/${POSTGRES_DB:-tracking_hub}?schema=public
+      CONVERSION_MODE: simulated
+      ENABLE_TEST_SCENARIOS: ${ENABLE_TEST_SCENARIOS:-false}
     ports:
       - "3000:3000"
     depends_on:
@@ -65,6 +67,10 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-tracking_hub}:${POSTGRES_PASSWORD:-tracking_hub}@db:5432/${POSTGRES_DB:-tracking_hub}?schema=public
+      CONVERSION_MODE: simulated
+      TRANSPORT_TIMEOUT_MS: ${TRANSPORT_TIMEOUT_MS:-2000}
+      DELIVERY_LEASE_MS: ${DELIVERY_LEASE_MS:-10000}
+      DELIVERY_MAX_ATTEMPTS: ${DELIVERY_MAX_ATTEMPTS:-3}
       WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
       ATTRIBUTION_WINDOW_MINUTES: ${ATTRIBUTION_WINDOW_MINUTES:-30}
       TRACKING_WAIT_MS: ${TRACKING_WAIT_MS:-10000}

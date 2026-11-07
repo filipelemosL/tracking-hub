@@ -11,7 +11,12 @@ describe("loadEnv", () => {
       workerPollIntervalMs: 1000,
       attributionWindowMinutes: 30,
       trackingWaitMs: 10000,
-      maxProcessingRetries: 3
+      maxProcessingRetries: 3,
+      conversionMode: "simulated",
+      enableTestScenarios: false,
+      transportTimeoutMs: 2000,
+      deliveryLeaseMs: 10000,
+      deliveryMaxAttempts: 3
     });
   });
 

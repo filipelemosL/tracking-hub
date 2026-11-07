@@ -5,6 +5,7 @@ import { captureSession, CaptureConflictError, type CaptureRepository } from "..
 import { CaptureValidationError, validateTrackingSession } from "./validate-tracking-session.js";
 import { receiveOrderWebhook, WebhookConflictError, type WebhookRepository } from "../application/orders/order-webhook.js";
 import { OrderWebhookValidationError, validateOrderWebhook } from "./validate-order-webhook.js";
+import { scenarios, type ConversionScenario } from "../application/conversions/providers.js";
 
 export type HealthCheck = () => Promise<void>;
 
@@ -15,9 +16,10 @@ export type AppDependencies = {
   orderWebhooks?: WebhookRepository;
   getOrderTracking?: (orderId: string) => Promise<{ status: number; body: unknown }>;
   now?: () => Date;
+  testScenariosEnabled?: boolean;
 };
 
-export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessions, orderWebhooks, getOrderTracking, now = () => new Date() }: AppDependencies): Express {
+export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessions, orderWebhooks, getOrderTracking, now = () => new Date(), testScenariosEnabled = false }: AppDependencies): Express {
   const app = express();
 
   app.disable("x-powered-by");
@@ -48,8 +50,15 @@ export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessio
   if (orderWebhooks) app.post("/webhooks/orders", async (request, response) => {
     const receivedAt = now();
     try {
+      const scenarioHeader = request.header("X-Test-Conversion-Scenario");
+      if (scenarioHeader !== undefined && !testScenariosEnabled) {
+        response.status(400).json({ code: "TEST_SCENARIO_DISABLED" }); return;
+      }
+      if (scenarioHeader !== undefined && !scenarios.includes(scenarioHeader as ConversionScenario)) {
+        response.status(400).json({ code: "INVALID_TEST_SCENARIO" }); return;
+      }
       const input = validateOrderWebhook(request.body, receivedAt);
-      const { duplicate } = await receiveOrderWebhook(orderWebhooks, input, request.body, receivedAt);
+      const { duplicate } = await receiveOrderWebhook(orderWebhooks, input, request.body, receivedAt, (scenarioHeader ?? "SUCCESS") as ConversionScenario, scenarioHeader !== undefined);
       response.status(202).json({ eventId: input.eventId, accepted: true, duplicate });
     } catch (error) {
       if (error instanceof OrderWebhookValidationError) {

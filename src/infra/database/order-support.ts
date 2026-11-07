@@ -17,7 +17,7 @@ function protect(value: unknown): unknown {
 export function orderSupportRepository(prisma: PrismaClient) {
   return async (orderId: string): Promise<{ status: number; body: unknown }> => {
     const [order, events] = await Promise.all([
-      prisma.order.findUnique({ where: { orderId }, include: { deliveries: { orderBy: { provider: "asc" } } } }),
+      prisma.order.findUnique({ where: { orderId }, include: { deliveries: { orderBy: { provider: "asc" }, include: { attempts: { orderBy: { attemptNumber: "asc" } } } } } }),
       prisma.webhookEvent.findMany({ where: { orderId }, orderBy: { receivedAt: "asc" } })
     ]);
     if (!order && events.length === 0) return { status: 404, body: { code: "ORDER_NOT_FOUND" } };
@@ -48,7 +48,15 @@ export function orderSupportRepository(prisma: PrismaClient) {
       })),
       deliveries: order.deliveries.map((delivery) => ({
         provider: delivery.provider, type: delivery.type,
-        conversionId: delivery.conversionId, status: delivery.status, attempts: []
+        conversionId: delivery.conversionId, status: delivery.status,
+        reason: delivery.reason, nextAttemptAt: delivery.nextAttemptAt?.toISOString() ?? null,
+        transportMode: delivery.transportMode, payloadSchemaVersion: delivery.payloadSchemaVersion,
+        attempts: delivery.attempts.map((attempt) => ({
+          attemptNumber: attempt.attemptNumber, startedAt: attempt.startedAt.toISOString(),
+          finishedAt: attempt.finishedAt?.toISOString() ?? null, status: attempt.status,
+          httpStatus: attempt.httpStatus, errorCode: attempt.errorCode,
+          request: attempt.request, response: attempt.response, requestDigest: attempt.requestDigest
+        }))
       }))
     } };
   };
