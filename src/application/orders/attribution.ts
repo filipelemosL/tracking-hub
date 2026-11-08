@@ -17,6 +17,7 @@ export type AttributionSnapshot = {
   customFields: Record<string, unknown>;
   identifiers: Record<string, string>;
   provenance: Record<string, string>;
+  evidence: Record<string, { source: "TRACKING_SESSION" | "WEBHOOK"; sourceId: string; path: string }>;
   customFieldConflicts: Array<{ field: string; webhookValue: unknown; sessionValue: unknown }>;
   timeSource: "OCCURRED_AT" | "RECEIVED_AT";
 };
@@ -39,17 +40,27 @@ export function buildAttribution(
   const customFieldSource = useWebhook ? "webhook.customFields" : "trackingSession.customFields";
   const identifiers: Record<string, string> = {};
   const provenance: Record<string, string> = {};
+  const evidence: AttributionSnapshot["evidence"] = {};
+  const hasValue = (value: unknown) => value !== null && value !== undefined && value !== "";
   if (session) {
     for (const name of identifierNames) {
       const value = session[name];
       if (value !== null) {
         identifiers[name] = value;
         provenance[`identifiers.${name}`] = `trackingSession.identifiers.${name}`;
+        if (hasValue(value)) evidence[`identifiers.${name}`] = {
+          source: "TRACKING_SESSION", sourceId: session.sessionId, path: `identifiers.${name}`
+        };
       }
     }
   }
   for (const field of Object.keys(customFields)) {
     provenance[`customFields.${field}`] = `${customFieldSource}.${field}`;
+    if (hasValue(customFields[field])) evidence[`customFields.${field}`] = {
+      source: useWebhook ? "WEBHOOK" : "TRACKING_SESSION",
+      sourceId: useWebhook ? input.eventId : session!.sessionId,
+      path: `customFields.${field}`
+    };
   }
   const customFieldConflicts = sessionFields && useWebhook
     ? Object.keys(webhookFields).filter((field) =>
@@ -71,6 +82,7 @@ export function buildAttribution(
     identifiers: attributed ? identifiers : {},
     provenance: attributed ? provenance : Object.fromEntries(Object.entries(provenance).filter(([key]) =>
       key.startsWith("customFields.") || key === "purchaseTime" || key === "requestedSessionId")),
+    evidence: attributed ? evidence : Object.fromEntries(Object.entries(evidence).filter(([key]) => key.startsWith("customFields."))),
     customFieldConflicts: attributed ? customFieldConflicts : [],
     timeSource
   };

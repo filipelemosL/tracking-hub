@@ -68,9 +68,10 @@ services:
     build: .
     command: ["node", "dist/worker.js"]
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${POSTGRES_USER:-tracking_hub}:${POSTGRES_PASSWORD:-tracking_hub}@db:5432/${POSTGRES_DB:-tracking_hub}?schema=public
       CONVERSION_MODE: simulated
+      ENABLE_TEST_SCENARIOS: ${ENABLE_TEST_SCENARIOS:-false}
       TRANSPORT_TIMEOUT_MS: ${TRANSPORT_TIMEOUT_MS:-2000}
       DELIVERY_LEASE_MS: ${DELIVERY_LEASE_MS:-10000}
       DELIVERY_MAX_ATTEMPTS: ${DELIVERY_MAX_ATTEMPTS:-3}

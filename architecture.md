@@ -64,3 +64,30 @@ Os estados de envio são `PENDING`, `PROCESSING`, `RETRY_PENDING`, `DELIVERED`, 
 Em desenvolvimento ou teste, defina `ENABLE_TEST_SCENARIOS=true` para usar `X-Test-Conversion-Scenario` no webhook: `SUCCESS`, `META_RETRY_ONCE`, `GOOGLE_RATE_LIMIT_ONCE`, `TIKTOK_PERMANENT`, `META_ALWAYS_503`, `META_TIMEOUT` e `GOOGLE_APPLICATION_ERROR`. No Compose, defina a variável antes de `docker compose up` e mantenha `NODE_ENV=development` ou `test` na API. O padrão é `false`; produção rejeita o header. O primeiro evento fixa o cenário. Reenvio explícito com outro cenário recebe 409; novo evento do mesmo pedido conserva os envios existentes. `TRANSPORT_TIMEOUT_MS=2000`, `DELIVERY_LEASE_MS=10000` e `DELIVERY_MAX_ATTEMPTS=3` são os padrões configuráveis. O corpo comercial do webhook não muda.
 
 Os formatos foram orientados pela [documentação de conversões offline do Google](https://developers.google.com/google-ads/api/docs/conversions/upload-offline), pelos [eventos padrão](https://ads.tiktok.com/resources/help/article/standard-events-parameters) e pela [deduplicação do TikTok](https://ads.tiktok.com/help/article/event-deduplication?lang=en), e pelos [parâmetros dinâmicos do RedTrack](https://help.redtrack.io/knowledgebase/kb/conversion-tracking/supported-dynamic-parameters/). A documentação Meta apresentou limitação de acesso e o contrato HTTP da UTMify não foi verificado nesta etapa. Todos os formatos aqui são modelos simulados; uma integração real precisa validar versão, autenticação, campos e política de deduplicação com cada provedor.
+
+## Diagnóstico de suporte
+
+`GET /support/orders/:orderId/tracking` é somente leitura e responde com `Cache-Control: no-store`. Um pedido inexistente, sem webhook, retorna `404 ORDER_NOT_FOUND`. Webhook durável ainda sem pedido retorna `202` com `processingStatus`, eventos, motivo e prazo; falha terminal antes do pedido retorna `200` com `processingStatus: FAILED`. Pedido existente retorna `200`, mesmo enquanto há envios ou outros eventos pendentes. Indisponibilidade do banco retorna `503 SUPPORT_LOOKUP_FAILED`, nunca 404. O `orderId` segue a mesma regra de escrita: texto não vazio, até 128 caracteres, sem formato imposto.
+
+O repositório carrega pedido, snapshot, deliveries, tentativas e eventos com `select` explícito em uma transação PostgreSQL `RepeatableRead`. Assim, um commit do worker durante as consultas não mistura versões de momentos distintos. As relações são carregadas em lote; deliveries saem em ordem alfabética de provedor, tentativas por número e eventos por `receivedAt` e `eventId`. O GET não executa `runOnce`, não envia conversões e não altera o banco.
+
+`attribution.provenance` mantém as strings antigas. Pedidos novos também persistem `attribution.evidence` no mesmo snapshot da compra, por campo usado, com `source`, `sourceId` e `path`. Por exemplo, `identifiers.gclid` pode apontar para `{ "source": "TRACKING_SESSION", "sourceId": "sessao-demo", "path": "identifiers.gclid" }`, enquanto `customFields.affiliateCode` aponta para o `eventId` do webhook se o grupo comercial veio dele. Dados de sessão que chegam depois não mudam a decisão. Para snapshots antigos sem evidência persistida, cada campo não vazio recebe `{ "source": "UNKNOWN", "sourceId": null, "path": null }`; `provenance` legado não é tratado como prova retroativa.
+
+Exemplo resumido com dados fictícios: `order: { orderId: "pedido-demo", amount: 25500, currency: "USD", timeSource: "OCCURRED_AT" }`, `attribution: { method: "SESSION_ID", sessionId: "sessao-demo", customFields: { campaign: "lancamento" }, identifiers: { gclid: "click-demo" }, evidence: { "identifiers.gclid": { source: "TRACKING_SESSION", sourceId: "sessao-demo", path: "identifiers.gclid" } } }`. Uma delivery `GOOGLE` pode estar `DELIVERED` com tentativa `SUCCEEDED`, HTTP 200 e `requestDigest`; outra `META` pode estar `RETRY_PENDING` com HTTP 503. São fatos independentes da campanha e da atribuição.
+
+| Código ou estado | Interpretação no diagnóstico |
+| --- | --- |
+| `NO_MATCH` | Nenhuma evidência suficiente ligou a venda a uma sessão. |
+| `SESSION_NOT_FOUND` | O `sessionId` informado não apareceu até o prazo de espera. |
+| `AMBIGUOUS_CUSTOMER_MATCH` | Mais de uma sessão elegível tinha o mesmo cliente; nenhuma foi escolhida. |
+| `SESSION_AFTER_ORDER` | A sessão informada foi capturada depois da compra. |
+| `MISSING_CLICK_ID` | Google simulado foi ignorado sem gclid, gbraid ou wbraid. |
+| `MISSING_REDTRACK_CLICK_ID` | RedTrack simulado foi ignorado sem seu click ID próprio. |
+| `MISSING_MATCHING_DATA` | Meta ou TikTok simulados não tinham URL e sinal mínimo de matching. |
+| `FAILED_PERMANENT` | O destino rejeitou; consulte HTTP e erro da tentativa. |
+| `FAILED_EXHAUSTED` | Falhas temporárias conhecidas consumiram as três tentativas. |
+| `UNKNOWN` | A aceitação pode ter ocorrido; timeout ou perda de posse não autorizam retry automático. HTTP pode ser nulo. |
+| `PENDING`, `PROCESSING`, `RETRY_PENDING` | Ainda não há entrega confirmada. |
+| `DELIVERED` com `SIMULATED` | O transporte simulado aceitou; isso não prova aparição em painel externo. |
+
+O request exibido vem do registro lógico congelado e o digest identifica sua versão anterior à proteção. O sanitizador permite hashes SHA-256 apenas nos caminhos conhecidos de matching da Meta e do TikTok; credenciais com a mesma aparência são ocultadas. URLs, query strings, campos livres e respostas são protegidos e limitados para a saída, sem alterar o payload enviado ou armazenado. Este endpoint é uma ferramenta local de demonstração: a aplicação ainda não tem autenticação e precisa de controle de acesso antes de uso em produção, pois hashes e IDs de tracking são dados sensíveis.

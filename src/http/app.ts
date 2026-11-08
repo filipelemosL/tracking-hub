@@ -72,8 +72,14 @@ export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessio
   });
 
   if (getOrderTracking) app.get("/support/orders/:orderId/tracking", async (request, response) => {
+    response.set("Cache-Control", "no-store");
+    const orderId = request.params.orderId;
+    if (typeof orderId !== "string" || !orderId.trim() || orderId.length > 128) {
+      response.status(400).json({ code: "VALIDATION_ERROR", fields: ["orderId"] });
+      return;
+    }
     try {
-      const result = await getOrderTracking(request.params.orderId as string);
+      const result = await getOrderTracking(orderId.trim());
       response.status(result.status).json(result.body);
     } catch {
       response.status(503).json({ code: "SUPPORT_LOOKUP_FAILED" });
