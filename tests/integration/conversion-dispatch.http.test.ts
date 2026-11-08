@@ -51,7 +51,7 @@ describe("simulated conversion dispatch", () => {
     await prisma.$disconnect();
   });
 
-  it("sends five distinct payloads and redacts customer hashes in support", async () => {
+  it("sends five distinct payloads and keeps only customer hashes in support", async () => {
     await setup(); await drain();
     const rows = await deliveries();
     expect(rows).toHaveLength(5);
@@ -67,8 +67,8 @@ describe("simulated conversion dispatch", () => {
     expect((byProvider.UTMIFY!.frozenRequest as { body: { amountInCents: number; trackingParameters: Record<string, string>; metadata: Record<string, string> } }).body).toMatchObject({ amountInCents: 25500, trackingParameters: { utm_source: "facebook", utm_campaign: "launch", utm_content: "card" }, metadata: { utmifyId: "utmify-click", affiliateCode: "AFF-1" } });
     expect((byProvider.REDTRACK!.frozenRequest as { query: Record<string, string> }).query).toEqual({ clickid: "redtrack-click" });
     const support = await request(enabledApp).get("/support/orders/conversion-order/tracking");
-    expect(support.body.deliveries.find((row: { provider: string }) => row.provider === "META").attempts[0].request.body.data[0].user_data.em).toBe("[REDACTED]");
-    expect(JSON.stringify(support.body)).not.toContain(meta.body.data[0]?.user_data.em[0]);
+    expect(support.body.deliveries.find((row: { provider: string }) => row.provider === "META").attempts[0].request.body.data[0].user_data.em).toEqual(meta.body.data[0]?.user_data.em);
+    expect(JSON.stringify(support.body)).not.toContain("Buyer@Example.Test");
   });
 
   it("isolates a Meta retry and preserves its frozen request and digest", async () => {

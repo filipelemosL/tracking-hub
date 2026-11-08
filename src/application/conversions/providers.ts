@@ -116,6 +116,15 @@ export function createConversionProviders(timeoutMs: number): Record<ProviderNam
 
 export function protectTransportData(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(protectTransportData);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, /^(em|ph|email|phone|authorization|access.token|api.key)$/i.test(key) ? "[REDACTED]" : protectTransportData(item)]));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    if (/^(authorization|access.token|api.key)$/i.test(key)) return [key, "[REDACTED]"];
+    if (/^(em|ph|email|phone)$/i.test(key)) {
+      const safeHash = (candidate: unknown) => typeof candidate === "string" && /^[a-f0-9]{64}$/i.test(candidate);
+      if (safeHash(item)) return [key, item];
+      if (Array.isArray(item) && item.every(safeHash)) return [key, item];
+      return [key, "[REDACTED]"];
+    }
+    return [key, protectTransportData(item)];
+  }));
   return value;
 }

@@ -21,7 +21,7 @@
 3. O worker sequencial usa `runOnce` sobre a fila PostgreSQL. Pedido, snapshot, cinco envios `PENDING` e conclusão do evento são gravados na mesma transação. Um advisory lock por `orderId` serializa eventos concorrentes do mesmo pedido; não há estado `PROCESSING` sem recuperação.
    Eventos posteriores do mesmo pedido aguardam um evento anterior ainda elegível, preservando a primeira decisão mesmo durante `WAITING_TRACKING`.
 4. O mesmo worker executa um ciclo de pedidos e um ciclo do dispatcher, em sequência. O dispatcher reivindica um envio com token e lease, grava `STARTED`, chama o transporte simulado fora da transação e grava o resultado. Retoma `PENDING` e `RETRY_PENDING` após reinício. Lease vencido com tentativa aberta vira `UNKNOWN`, sem retry automático.
-5. `GET /support/orders/:orderId/tracking` expõe o processamento pendente (`202`) ou pedido concluído (`200`), decisão, origem por campo, estados dos envios e tentativas em ordem. Requests e respostas na visão de suporte têm e-mail, telefone e credenciais mascarados. O payload original não é retornado.
+5. `GET /support/orders/:orderId/tracking` expõe o processamento pendente (`202`) ou pedido concluído (`200`), decisão, origem por campo, estados dos envios e tentativas em ordem. Requests e respostas na visão de suporte mostram apenas hashes SHA-256 válidos para e-mail e telefone; texto puro e credenciais são mascarados. O payload original não é retornado.
 
 ## Banco de dados
 | Modelo | Chaves e conteúdo |

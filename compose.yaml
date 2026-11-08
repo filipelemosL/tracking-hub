@@ -2,6 +2,9 @@ services:
   db:
     image: postgres:17-alpine
     environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      CONVERSION_MODE: ${CONVERSION_MODE:-simulated}
+      ENABLE_TEST_SCENARIOS: "${ENABLE_TEST_SCENARIOS:-false}"
       POSTGRES_DB: ${POSTGRES_DB:-tracking_hub}
       POSTGRES_USER: ${POSTGRES_USER:-tracking_hub}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracking_hub}

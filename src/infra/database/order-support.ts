@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { protectTransportData } from "../../application/conversions/providers.js";
 
 function protect(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(protect);
@@ -55,7 +56,8 @@ export function orderSupportRepository(prisma: PrismaClient) {
           attemptNumber: attempt.attemptNumber, startedAt: attempt.startedAt.toISOString(),
           finishedAt: attempt.finishedAt?.toISOString() ?? null, status: attempt.status,
           httpStatus: attempt.httpStatus, errorCode: attempt.errorCode,
-          request: attempt.request, response: attempt.response, requestDigest: attempt.requestDigest
+          request: protectTransportData(delivery.frozenRequest ?? attempt.request),
+          response: protectTransportData(attempt.response), requestDigest: attempt.requestDigest
         }))
       }))
     } };
