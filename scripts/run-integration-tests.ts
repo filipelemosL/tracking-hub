@@ -38,5 +38,6 @@ run(process.execPath, [
   "node_modules/vitest/vitest.mjs",
   "run",
   "--config",
-  "vitest.integration.config.ts"
+  "vitest.integration.config.ts",
+  ...process.argv.slice(2)
 ]);

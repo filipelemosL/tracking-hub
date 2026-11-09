@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { createConversionProviders, protectTransportData, requestDigest, type ConversionEvent, type ConversionScenario, type LogicalRequest, type ProviderName, type ProviderResult } from "../../application/conversions/providers.js";
+import { systemLog } from "../logging/system-log.js";
 
 export type DispatcherConfig = { transportTimeoutMs: number; deliveryLeaseMs: number; deliveryMaxAttempts: number };
 export type DispatcherHooks = { afterTransport?: () => Promise<void> };
@@ -41,6 +42,7 @@ export function createConversionDispatcher(prisma: PrismaClient, config: Dispatc
     const prepared = provider.prepare(event);
     if (prepared.skipReason && !delivery.frozenRequest) {
       await prisma.conversionDelivery.updateMany({ where: { id: delivery.id, status: delivery.status }, data: { status: "SKIPPED", reason: prepared.skipReason, payloadSchemaVersion: prepared.schemaVersion, nextAttemptAt: null } });
+      systemLog("conversion.skipped", { orderId: order.orderId, provider: delivery.provider, conversionId: delivery.conversionId, reason: prepared.skipReason });
       return true;
     }
     const request = (delivery.frozenRequest ?? prepared.request) as LogicalRequest | undefined;
@@ -55,12 +57,14 @@ export function createConversionDispatcher(prisma: PrismaClient, config: Dispatc
       return true;
     });
     if (!claimed) return true;
+    systemLog("conversion.request", { orderId: order.orderId, provider: event.provider, conversionId: event.conversionId, attemptNumber, request });
     let result: ProviderResult;
     try {
       result = await provider.send({ ...event, request });
     } catch {
       result = { outcome: "UNCERTAIN", httpStatus: null, response: null, errorCode: "TRANSPORT_UNKNOWN" };
     }
+    systemLog("conversion.response", { orderId: order.orderId, provider: event.provider, conversionId: event.conversionId, attemptNumber, outcome: result.outcome, httpStatus: result.httpStatus, errorCode: result.errorCode, response: result.response });
     await hooks.afterTransport?.();
     const finishTime = now();
     const exhausted = result.outcome === "TEMPORARY" && attemptNumber >= config.deliveryMaxAttempts;

@@ -6,6 +6,7 @@
 - Prisma acessa o PostgreSQL. Um contrato `ConversionProvider` define o envio por adaptadores.
 - Docker Compose sobe PostgreSQL, migrator, API e worker. API e worker usam a mesma imagem com comandos distintos; o migrator conclui antes de ambos. O profile `test` oferece um banco isolado.
 - O banco é a fila persistente. Vitest testa os casos de uso e a integração com PostgreSQL.
+- Os oito cenários exigidos no enunciado estão reunidos em `tests/integration/casos-obrigatorios.spec.ts`. `npm run test:obrigatorios` executa só essa suíte no banco `tracking_hub_test`; `npm run test:integration` inclui essa suíte e as regressões detalhadas.
 
 ## Fluxo e consistência
 1. `POST /tracking/sessions` valida, normaliza e persiste a captura.
@@ -91,3 +92,13 @@ Exemplo resumido com dados fictícios: `order: { orderId: "pedido-demo", amount:
 | `DELIVERED` com `SIMULATED` | O transporte simulado aceitou; isso não prova aparição em painel externo. |
 
 O request exibido vem do registro lógico congelado e o digest identifica sua versão anterior à proteção. O sanitizador permite hashes SHA-256 apenas nos caminhos conhecidos de matching da Meta e do TikTok; credenciais com a mesma aparência são ocultadas. URLs, query strings, campos livres e respostas são protegidos e limitados para a saída, sem alterar o payload enviado ou armazenado. Este endpoint é uma ferramenta local de demonstração: a aplicação ainda não tem autenticação e precisa de controle de acesso antes de uso em produção, pois hashes e IDs de tracking são dados sensíveis.
+
+### Consulta pelo terminal
+
+Com a API em execução, `npm run support:order -- pedido-demo` consulta o mesmo GET e organiza o atendimento por situação do pedido, vínculo com a visita, andamento, resultado dos envios e pontos para investigar. Exibe o valor em centavos e entre parênteses na unidade da moeda registrada (por exemplo, `25500 centavos (US$ 255,00)` para USD), sem fazer câmbio. Mostra a origem dos campos e o histórico de tentativas. Use `--show-payload` para incluir requests e respostas já protegidos pela API, ou `--json` para ver a resposta JSON completa. Para outra instância, use `--base-url http://localhost:3000` ou defina `TRACKING_HUB_BASE_URL`. O comando é somente leitura, não conecta diretamente ao banco e encerra com código 1 em erro HTTP ou de conexão. O script usa `tsx` do ambiente de desenvolvimento; requer `npm install`/`npm ci` local.
+
+O relatório de terminal agrupa pedido e atribuição, campos usados com suas evidências, webhook e conversões por provedor. Estados têm destaque de cor em terminais que suportam ANSI; `NO_COLOR` desliga as cores. Os IDs de conversão e digests permanecem completos para investigação.
+
+### Logs no console
+
+A API registra uma linha JSON para cada request e outra para a resposta, ligadas por `requestId`, com método, caminho, status, duração, headers e body. O worker registra as requisições e respostas do transporte simulado por provedor, conversão e número da tentativa; `SKIPPED` também é registrado com o motivo. O conteúdo é sanitizado antes do log: credenciais, cookies de autenticação e contatos em texto puro são ocultados, e campos livres extensos são limitados. Um JSON inválido não tem body parseado para registrar. Veja os dois processos com `docker compose logs -f api worker`; durante desenvolvimento local, os logs aparecem nos terminais de `npm run dev` e `npm run dev:worker`. Esses logs não substituem o histórico persistido de tentativas.

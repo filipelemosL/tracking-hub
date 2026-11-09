@@ -6,6 +6,7 @@ import { CaptureValidationError, validateTrackingSession } from "./validate-trac
 import { receiveOrderWebhook, WebhookConflictError, type WebhookRepository } from "../application/orders/order-webhook.js";
 import { OrderWebhookValidationError, validateOrderWebhook } from "./validate-order-webhook.js";
 import { scenarios, type ConversionScenario } from "../application/conversions/providers.js";
+import { requestLogging } from "./request-logging.js";
 
 export type HealthCheck = () => Promise<void>;
 
@@ -23,6 +24,7 @@ export function createApp({ checkDatabase, getDatabaseDiagnostic, trackingSessio
   const app = express();
 
   app.disable("x-powered-by");
+  app.use(requestLogging);
   app.use(express.json({ limit: "64kb" }));
 
   if (trackingSessions) app.post("/tracking/sessions", async (request, response) => {
